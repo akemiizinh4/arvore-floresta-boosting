@@ -19,9 +19,10 @@ index.html               página do artigo
 estilos/estilo.css       estilos
 js/indice.js             destaca no índice a seção que está na tela
 imagens/                 figuras geradas pelo notebook
-imagens/autores/         fotos dos autores (<usuario-do-github>.jpg)
 notebooks/experimento.ipynb   experimento completo, com as saídas
 requirements.txt         versões das bibliotecas
+QUADRO_OBSERVACAO.md     quadro de observação (referências, decisões do grupo)
+LICENSE                  licenças (MIT para o código, CC BY 4.0 para o texto)
 ```
 
 ## Como reproduzir o experimento
@@ -57,14 +58,6 @@ Usamos o **NSL-KDD** (Canadian Institute for Cybersecurity, University of New Br
 - O notebook baixa os arquivos de um espelho público no GitHub: https://github.com/jmnwong/NSL-KDD-Dataset
 
 Os dados **não** estão neste repositório. Nenhum tráfego real de rede ou endereço IP foi usado.
-
-## Ver a página no seu computador
-
-```bash
-python -m http.server 8000
-```
-
-Depois abra http://localhost:8000 no navegador.
 
 ## Créditos
 
