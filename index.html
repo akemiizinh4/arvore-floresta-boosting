@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Árvore, floresta ou boosting? Detecção de intrusões com NSL-KDD</title>
+  <meta name="description" content="Comparamos Árvore de Decisão, Random Forest e XGBoost num detector de intrusão com o NSL-KDD e justificamos qual modelo escolher.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="estilos/estilo.css">
+</head>
+<body>
+  <a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+  <!-- ================= CABEÇALHO ================= -->
+  <header class="cabecalho">
+    <div class="cabecalho-interno">
+      <a class="marca" href="#topo"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M11 7 4 14M11 7l7 7" stroke="var(--suave)" stroke-width="1.5" fill="none"/><circle cx="11" cy="4" r="3" fill="var(--arvore)"/><circle cx="4" cy="17" r="3" fill="var(--floresta)"/><circle cx="18" cy="17" r="3" fill="var(--boost)"/></svg>Árvore, floresta ou boosting? <span>Aprendizado de máquina em redes</span></a>
+      <nav aria-label="Principal">
+        <ul>
+          <li><a href="#indice">Índice</a></li>
+          <li class="so-largo"><a href="#experimento">Experimento</a></li>
+          <li class="so-largo"><a href="#resultados">Resultados</a></li>
+          <li class="so-largo"><a href="#recomendacao">Recomendação</a></li>
+          <li><a href="https://github.com/akemiizinh4/arvore-floresta-boosting" target="_blank" rel="noopener noreferrer">Repositório</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ================= ABERTURA ================= -->
+  <header class="abertura" id="topo">
+    <h1>Árvore, floresta ou boosting? Escolhendo um modelo para detectar intrusões</h1>
+    <p class="subtitulo">Comparamos <span class="t-arvore">Árvore de Decisão</span>, <span class="t-floresta">Random Forest</span> e <span class="t-boost">XGBoost</span> no NSL-KDD, com os mesmos dados e o mesmo esforço de ajuste. O XGBoost foi o que deixou passar menos ataques, mas nenhum dos três pegou bem os ataques que nunca tinha visto.</p>
+
+    <figure class="caminho">
+      <!-- versão larga -->
+      <svg class="horizontal" viewBox="0 0 960 150" role="img" aria-labelledby="caminho-titulo">
+        <title id="caminho-titulo">Caminho de um fluxo pela árvore: bytes enviados até 28,5, poucas conexões ao serviço e quase nenhum byte de resposta levam à folha ataque.</title>
+        <defs>
+          <marker id="ponta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ponta" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <text class="fluxo" x="0" y="22">um fluxo chega: src_bytes = 0, dst_host_srv_count = 12, dst_bytes = 0</text>
+        <rect class="no" x="1" y="60" width="200" height="54" rx="27"/>
+        <text class="no-texto" x="101" y="92" text-anchor="middle">src_bytes ≤ 28,5 ?</text>
+        <path class="seta" d="M201,87 H236" marker-end="url(#ponta)"/>
+        <text class="rotulo" x="218" y="78" text-anchor="middle">sim</text>
+        <rect class="no" x="240" y="60" width="290" height="54" rx="27"/>
+        <text class="no-texto" x="385" y="92" text-anchor="middle">dst_host_srv_count ≤ 208,5 ?</text>
+        <path class="seta" d="M530,87 H566" marker-end="url(#ponta)"/>
+        <text class="rotulo" x="548" y="78" text-anchor="middle">sim</text>
+        <rect class="no" x="570" y="60" width="200" height="54" rx="27"/>
+        <text class="no-texto" x="670" y="92" text-anchor="middle">dst_bytes ≤ 3,5 ?</text>
+        <path class="seta" d="M770,87 H806" marker-end="url(#ponta)"/>
+        <text class="rotulo" x="788" y="78" text-anchor="middle">sim</text>
+        <rect class="folha" x="810" y="60" width="148" height="54" rx="6"/>
+        <text class="folha-texto" x="884" y="93" text-anchor="middle">ataque</text>
+      </svg>
+      <!-- versão para celular -->
+      <svg class="vertical" viewBox="0 0 340 420" role="img" aria-labelledby="caminho-titulo-2">
+        <title id="caminho-titulo-2">Caminho de um fluxo pela árvore até a folha ataque.</title>
+        <defs>
+          <marker id="ponta2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ponta" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <text class="fluxo" x="0" y="13">um fluxo chega: src_bytes = 0,</text>
+        <text class="fluxo" x="0" y="30">dst_host_srv_count = 12,</text>
+        <text class="fluxo" x="0" y="47">dst_bytes = 0</text>
+        <rect class="no" x="20" y="60" width="300" height="50" rx="25"/>
+        <text class="no-texto" x="170" y="90" text-anchor="middle">src_bytes ≤ 28,5 ?</text>
+        <path class="seta" d="M170,110 V146" marker-end="url(#ponta2)"/>
+        <text class="rotulo" x="182" y="133">sim</text>
+        <rect class="no" x="20" y="150" width="300" height="50" rx="25"/>
+        <text class="no-texto" x="170" y="180" text-anchor="middle">dst_host_srv_count ≤ 208,5 ?</text>
+        <path class="seta" d="M170,200 V236" marker-end="url(#ponta2)"/>
+        <text class="rotulo" x="182" y="223">sim</text>
+        <rect class="no" x="20" y="240" width="300" height="50" rx="25"/>
+        <text class="no-texto" x="170" y="270" text-anchor="middle">dst_bytes ≤ 3,5 ?</text>
+        <path class="seta" d="M170,290 V326" marker-end="url(#ponta2)"/>
+        <text class="rotulo" x="182" y="313">sim</text>
+        <rect class="folha" x="95" y="330" width="150" height="50" rx="6"/>
+        <text class="folha-texto" x="170" y="361" text-anchor="middle">ataque</text>
+      </svg>
+      <figcaption>Três perguntas de uma árvore de decisão treinada no NSL-KDD. Uma conexão que quase não troca dados é típica de varredura e de negação de serviço. Só com regras assim, a árvore já acerta a grande maioria das conexões (veja a <a href="#arvore">seção da árvore</a>).</figcaption>
+    </figure>
+
+    <div class="autoria">
+      <ul aria-label="Autores">
+        <li><span class="foto" aria-hidden="true">D<img src="imagens/autores/DaviGabriel07.jpg" alt="" onerror="this.remove()"></span>Davi Gabriel Borges dos Santos</li>
+        <li><span class="foto" aria-hidden="true">F<img src="imagens/autores/akemiizinh4.jpg" alt="" onerror="this.remove()"></span>Fernanda Akemi Martins Sanpei</li>
+        <li><span class="foto" aria-hidden="true">G<img src="imagens/autores/GzTop1.jpg" alt="" onerror="this.remove()"></span>Geziel de Andrade</li>
+        <li><span class="foto" aria-hidden="true">H<img src="imagens/autores/hendrick-constant.jpg" alt="" onerror="this.remove()"></span>Hendrick Ambriola</li>
+        <li><span class="foto" aria-hidden="true">I<img src="imagens/autores/isaacwbraz.jpg" alt="" onerror="this.remove()"></span>Isaac William</li>
+      </ul>
+    </div>
+    <p class="datas">Publicado em <time datetime="2026-10-19">19 de outubro de 2026</time>. Revisado em <time datetime="2026-10-19">19 de outubro de 2026</time>. Leitura: cerca de 20 minutos. <a href="#autores">Sobre os autores</a></p>
+  </header>
+
+  <div class="miolo">
+    <!-- ================= ÍNDICE ================= -->
+    <nav class="indice" id="indice" aria-label="Índice do artigo">
+      <div class="indice-fixo">
+        <details open>
+          <summary>Neste artigo</summary>
+          <ol>
+            <li><a href="#introducao">Um ataque que ninguém viu chegar</a></li>
+            <li><a href="#vocabulario">Vocabulário mínimo</a></li>
+            <li><a href="#arvore">Árvore de Decisão</a></li>
+            <li><a href="#floresta">Random Forest</a></li>
+            <li><a href="#xgboost">XGBoost</a></li>
+            <li><a href="#comparacao">Bagging × boosting</a></li>
+            <li><a href="#experimento">O experimento</a></li>
+            <li><a href="#resultados">Resultados</a></li>
+            <li><a href="#recomendacao">Recomendação</a></li>
+            <li><a href="#limitacoes">Limitações</a></li>
+            <li><a href="#links">Para ir além</a></li>
+            <li><a href="#referencias">Referências</a></li>
+            <li><a href="#autores">Autores</a></li>
+          </ol>
+        </details>
+      </div>
+    </nav>
+
+    <article id="conteudo">
+
+      <!-- ================= INTRODUÇÃO ================= -->
+      <section id="introducao" aria-labelledby="t-introducao">
+        <h2 id="t-introducao">Um ataque que ninguém viu chegar</h2>
+        <p>Imagine um sistema que olha cada conexão da rede e decide: normal ou ataque. Ele foi treinado com milhares de ataques conhecidos e acerta quase tudo nos testes do laboratório. Aí aparece um tipo de ataque novo, que não estava nos dados de treino, e ele passa direto.</p>
+        <p>Esse é o problema real de um detector de intrusão (IDS, do inglês <i>Intrusion Detection System</i>). No nosso experimento ele apareceu com números. Dentro dos dados de treino, os três modelos acertaram mais de 99,8% dos casos. No teste, que tem 17 tipos de ataque nunca vistos, todos deixaram passar cerca de um terço dos ataques.</p>
+        <p>Estudos publicados com o mesmo conjunto de dados chegam a 99% de acurácia (Osco Vasquez, 2025 <a href="#ref-4">[4]</a>). Neste artigo mostramos por que os nossos números são bem menores, e por que achamos que eles retratam melhor o problema real.</p>
+        <div class="destaque">
+          <p class="destaque-titulo">O que você vai aprender</p>
+          <ul>
+            <li>Como uma <span class="t-arvore">Árvore de Decisão</span> classifica uma conexão, lendo uma árvore treinada de verdade.</li>
+            <li>Por que juntar muitas árvores em paralelo (<span class="t-floresta">Random Forest</span>) reduz a variância, e por que juntá-las em sequência (<span class="t-boost">XGBoost</span>) reduz o viés.</li>
+            <li>Como comparar modelos de forma justa e quais métricas usar quando a acurácia engana.</li>
+            <li>Qual modelo escolhemos para o detector, e onde os três falham.</li>
+          </ul>
+        </div>
+        <p>O texto é para quem já programa em Python mas tem pouca experiência com aprendizado de máquina. Todo termo técnico é explicado na primeira vez que aparece, e as fórmulas ficam em caixas de aprofundamento que você pode pular.</p>
+      </section>
+
+
+      <!-- ================= VOCABULÁRIO ================= -->
+      <section id="vocabulario" aria-labelledby="t-vocabulario">
+        <h2 id="t-vocabulario">Vocabulário mínimo</h2>
+        <p>Estes termos aparecem em todo o texto. Os outros, vamos definindo conforme aparecem.</p>
+        <dl class="vocabulario">
+          <dt>Atributo</dt><dd>Uma característica da conexão que o modelo usa para decidir, como o número de bytes enviados ou o protocolo.</dd>
+          <dt>Classe ou rótulo</dt><dd>A resposta certa de cada exemplo. Aqui são duas: <b>normal</b> ou <b>ataque</b>.</dd>
+          <dt>Treino, validação e teste</dt><dd>O treino é o que o modelo usa para aprender. A validação é uma parte separada do treino, usada para escolher configurações. O teste fica guardado até o fim e mede como o modelo se sai com dados que nunca viu.</dd>
+          <dt>Hiperparâmetro</dt><dd>Uma configuração escolhida antes do treino, como a profundidade máxima de uma árvore.</dd>
+          <dt>Overfitting</dt><dd>Quando o modelo decora o treino, inclusive o ruído, e erra mais em dados novos.</dd>
+          <dt>Falso negativo e falso positivo</dt><dd>Falso negativo é um ataque que o modelo chamou de normal: um ataque que passou. Falso positivo é uma conexão normal chamada de ataque: um alarme falso.</dd>
+          <dt>Acurácia</dt><dd>A fração de todas as conexões que o modelo classificou certo. Engana quando um tipo de erro importa mais que o outro.</dd>
+          <dt>Precisão</dt><dd>Dos fluxos que o modelo chamou de ataque, a fração que era ataque mesmo. Cai quando há muitos alarmes falsos.</dd>
+          <dt>Recall</dt><dd>Dos ataques reais, a fração que o modelo pegou. Cai quando muitos ataques passam.</dd>
+          <dt>F1</dt><dd>Um número de 0 a 1 que combina precisão e recall (a média harmônica dos dois). Só é alto quando os dois são altos.</dd>
+        </dl>
+      </section>
+
+      <!-- ================= ÁRVORE ================= -->
+      <section id="arvore" aria-labelledby="t-arvore">
+        <h2 id="t-arvore"><span class="t-arvore">Árvore de Decisão</span>: uma sequência de perguntas</h2>
+        <p>Uma árvore de decisão classifica fazendo perguntas de sim ou não sobre os atributos, uma depois da outra, até chegar a uma resposta. Cada pergunta é um <dfn>nó</dfn>, e cada resposta final é uma <dfn>folha</dfn>.</p>
+
+        <h3>Primeiro, uma árvore pequena</h3>
+        <p>Vamos treinar uma árvore com só 7 atributos e no máximo 3 perguntas seguidas (<dfn>profundidade</dfn> 3). O caminho do topo da página é um dos que ela aprendeu: se a conexão enviou 28 bytes ou menos, o destino recebeu poucas conexões para o mesmo serviço e quase não respondeu, é ataque.</p>
+        <p>Faz sentido: uma conexão que não manda nem recebe dados é típica de varreduras e de ataques de negação de serviço, que abrem conexões só para ocupar o servidor. Com só essas regras, a árvore pequena já chega a F1 de 0,957 na validação.</p>
+
+        <pre class="codigo"><code class="language-python">from sklearn.tree import DecisionTreeClassifier, export_text
+
+# árvore pequena e poucos atributos: dá para ler as regras
+poucos = ["src_bytes", "dst_bytes", "count", "same_srv_rate",
+          "dst_host_srv_count", "logged_in", "serror_rate"]
+
+# max_depth=3: no máximo três perguntas até chegar a uma resposta
+arvore_rasa = DecisionTreeClassifier(max_depth=3,
+                                     random_state=SEED)
+arvore_rasa.fit(X_tr[poucos], y_tr)
+
+# imprime as regras em texto
+print(export_text(arvore_rasa, feature_names=poucos))</code></pre>
+        <p class="cod-nota">Trecho do notebook, seção 2. <code>X_tr</code> é o treino sem a parte separada para validação; as regras impressas incluem o caminho mostrado no topo da página.</p>
+
+        <figure class="largo">
+          <img src="imagens/arvore_rasa.png" width="1374" height="590" loading="lazy"
+               alt="Diagrama da árvore de profundidade 3: a raiz pergunta src_bytes menor ou igual a 28,5; os ramos seguintes perguntam dst_host_srv_count, count e dst_bytes, e as folhas dizem normal ou ataque.">
+          <figcaption>Figura 1. Árvore de decisão com profundidade 3 treinada no NSL-KDD. Cores mais fortes indicam folhas mais puras.</figcaption>
+        </figure>
+
+        <h3>Como a árvore escolhe a pergunta</h3>
+        <p>Em cada nó, a árvore testa várias perguntas possíveis e fica com a que separa melhor as classes. Separar melhor quer dizer deixar cada lado o mais puro possível, só com normais ou só com ataques. As medidas mais usadas para isso são o <dfn>índice de Gini</dfn> e a <dfn>entropia</dfn>.</p>
+
+        <details class="aprofundar">
+          <summary>Aprofundamento: Gini e entropia</summary>
+          <p>Se <i>p</i><sub>k</sub> é a fração de exemplos da classe <i>k</i> num nó, o Gini mede a chance de errar ao sortear um rótulo, e a entropia mede a surpresa. Os dois valem 0 num nó puro e são máximos quando as classes estão meio a meio.</p>
+          <p class="formula">Gini = 1 − Σ<sub>k</sub> <i>p</i><sub>k</sub><sup>2</sup> &emsp;&emsp; Entropia = − Σ<sub>k</sub> <i>p</i><sub>k</sub> log<sub>2</sub> <i>p</i><sub>k</sub></p>
+          <p>Exemplo: um nó com 50 normais e 50 ataques tem Gini = 1 − (0,5² + 0,5²) = 0,5. Um nó com 90 ataques e 10 normais tem Gini = 1 − (0,9² + 0,1²) = 0,18.</p>
+        </details>
+
+        <h3>O problema: overfitting</h3>
+        <p>Se deixarmos a árvore crescer sem limite, ela continua criando perguntas até acertar cada exemplo do treino, inclusive os casos estranhos e o ruído. Isso é <dfn>overfitting</dfn>: o modelo decora o treino em vez de aprender o padrão.</p>
+        <p>No nosso gráfico, a partir da profundidade 20 o F1 no treino chega a 1,0, enquanto o da validação para em cerca de 0,998. A distância parece pequena porque a validação vem da mesma distribuição do treino. O preço real do overfitting só aparece no teste, com ataques novos (<a href="#resultados">resultados</a>).</p>
+
+        <figure>
+          <img src="imagens/overfitting_profundidade.png" width="690" height="390" loading="lazy"
+               alt="Gráfico de linhas do F1 pela profundidade máxima: as curvas de treino e validação sobem juntas até a profundidade 10; depois a de treino chega a 1 e a de validação fica em cerca de 0,998.">
+          <figcaption>Figura 2. F1 no treino e na validação conforme a profundidade da árvore aumenta.</figcaption>
+        </figure>
+
+        <p>Para controlar isso usamos <dfn>hiperparâmetros</dfn>, que são configurações escolhidas antes do treino: a profundidade máxima, o número mínimo de exemplos por folha e a <dfn>poda</dfn>, que corta galhos que quase não ajudam.</p>
+
+        <h3>Outro problema: variância</h3>
+        <p>Uma árvore também é sensível aos dados. Treinamos 10 árvores, cada uma numa amostra um pouco diferente do treino, e o F1 variou com desvio padrão de 0,0003. Parece pouco, mas as árvores aprendidas podem ser bem diferentes entre si. Essa instabilidade se chama <dfn>variância</dfn>, e é ela que a Random Forest ataca.</p>
+
+        <p class="quando"><strong>Quando usar:</strong> quando alguém precisa ler e auditar a regra, quando a decisão tem que ser muito rápida, ou como ponto de partida para entender os dados.</p>
+      </section>
+
+      <!-- ================= RANDOM FOREST ================= -->
+      <section id="floresta" aria-labelledby="t-floresta">
+        <h2 id="t-floresta"><span class="t-floresta">Random Forest</span>: muitas árvores votando</h2>
+        <p>Se uma árvore sozinha é instável, a ideia da Random Forest é treinar muitas árvores diferentes e deixar que elas votem. O erro de uma tende a ser compensado pelas outras (Breiman, 2001 <a href="#ref-1">[1]</a>).</p>
+
+        <h3>Como as árvores ficam diferentes</h3>
+        <p>Se todas as árvores vissem os mesmos dados, aprenderiam a mesma coisa. Por isso a floresta usa duas fontes de sorteio:</p>
+        <ol>
+          <li><strong>Amostra bootstrap:</strong> cada árvore é treinada numa amostra sorteada do treino <i>com reposição</i>, do mesmo tamanho do original. Alguns exemplos aparecem repetidos e uns 37% ficam de fora.</li>
+          <li><strong>Seleção aleatória de atributos:</strong> em cada nó, a árvore só pode escolher a pergunta dentro de um sorteio de atributos (no nosso melhor modelo, a raiz quadrada do total, <code>max_features="sqrt"</code>).</li>
+        </ol>
+        <p>No final, cada árvore vota em normal ou ataque, e vence a maioria. Esse processo de sortear amostras e juntar os votos se chama <dfn>bagging</dfn> (de <i>bootstrap aggregating</i>).</p>
+
+        <figure>
+          <div class="esquemas">
+            <svg viewBox="0 0 400 330" role="img" aria-labelledby="bag-t">
+              <title id="bag-t">Bagging: os dados de treino geram três amostras diferentes; cada uma treina uma árvore, em paralelo, e as três decidem por votação por maioria.</title>
+              <defs><marker id="pb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="esq-ponta" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+              <text class="esq-titulo" x="200" y="20" text-anchor="middle">Bagging (Random Forest)</text>
+              <rect class="esq-dado" x="120" y="36" width="160" height="40" rx="6"/>
+              <text class="esq-texto" x="200" y="61" text-anchor="middle">dados de treino</text>
+              <path class="esq-seta" d="M170,76 L75,116" marker-end="url(#pb)"/>
+              <path class="esq-seta" d="M200,76 V116" marker-end="url(#pb)"/>
+              <path class="esq-seta" d="M230,76 L325,116" marker-end="url(#pb)"/>
+              <rect class="esq-arvore" x="20" y="120" width="110" height="44" rx="6"/>
+              <text class="esq-texto" x="75" y="139" text-anchor="middle">árvore 1</text><text class="esq-texto" x="75" y="157" text-anchor="middle" font-size="13">amostra 1</text>
+              <rect class="esq-arvore" x="145" y="120" width="110" height="44" rx="6"/>
+              <text class="esq-texto" x="200" y="139" text-anchor="middle">árvore 2</text><text class="esq-texto" x="200" y="157" text-anchor="middle" font-size="13">amostra 2</text>
+              <rect class="esq-arvore" x="270" y="120" width="110" height="44" rx="6"/>
+              <text class="esq-texto" x="325" y="139" text-anchor="middle">árvore 3</text><text class="esq-texto" x="325" y="157" text-anchor="middle" font-size="13">amostra 3</text>
+              <text class="esq-texto" x="75" y="186" text-anchor="middle" font-size="14">ataque</text>
+              <text class="esq-texto" x="200" y="186" text-anchor="middle" font-size="14">ataque</text>
+              <text class="esq-texto" x="325" y="186" text-anchor="middle" font-size="14">normal</text>
+              <path class="esq-seta" d="M75,194 L170,246" marker-end="url(#pb)"/>
+              <path class="esq-seta" d="M200,194 V246" marker-end="url(#pb)"/>
+              <path class="esq-seta" d="M325,194 L230,246" marker-end="url(#pb)"/>
+              <rect class="esq-final" x="110" y="250" width="180" height="46" rx="6"/>
+              <text class="esq-final-texto" x="200" y="272" text-anchor="middle">votação: ataque</text>
+              <text class="esq-final-texto" x="200" y="288" text-anchor="middle" font-size="13" font-weight="400">2 votos contra 1</text>
+              <text class="esq-texto" x="200" y="320" text-anchor="middle">reduz a variância</text>
+            </svg>
+            <svg viewBox="0 0 400 330" role="img" aria-labelledby="boost-t">
+              <title id="boost-t">Boosting: a árvore 1 é treinada nos dados; a árvore 2 corrige o erro que sobrou da 1; a árvore 3 corrige o erro que sobrou das duas; o resultado é a soma das três.</title>
+              <defs><marker id="pbo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="esq-ponta" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+              <text class="esq-titulo" x="200" y="20" text-anchor="middle">Boosting (XGBoost)</text>
+              <rect class="esq-dado" x="120" y="36" width="160" height="40" rx="6"/>
+              <text class="esq-texto" x="200" y="61" text-anchor="middle">dados de treino</text>
+              <path class="esq-seta" d="M200,76 V96" marker-end="url(#pbo)"/>
+              <rect class="esq-arvore" x="140" y="100" width="120" height="38" rx="6"/>
+              <text class="esq-texto" x="200" y="124" text-anchor="middle">árvore 1</text>
+              <path class="esq-seta" d="M200,138 V158" marker-end="url(#pbo)"/>
+              <text class="esq-texto" x="212" y="153" font-size="14">corrige o erro</text>
+              <rect class="esq-arvore" x="140" y="162" width="120" height="38" rx="6"/>
+              <text class="esq-texto" x="200" y="186" text-anchor="middle">árvore 2</text>
+              <path class="esq-seta" d="M200,200 V220" marker-end="url(#pbo)"/>
+              <text class="esq-texto" x="212" y="215" font-size="14">corrige o erro</text>
+              <rect class="esq-arvore" x="140" y="224" width="120" height="38" rx="6"/>
+              <text class="esq-texto" x="200" y="248" text-anchor="middle">árvore 3</text>
+              <path class="esq-seta" d="M260,119 H330 V258" />
+              <path class="esq-seta" d="M260,181 H330" />
+              <path class="esq-seta" d="M260,243 H330" />
+              <path class="esq-seta" d="M330,258 V266" marker-end="url(#pbo)"/>
+              <rect class="esq-final" x="280" y="270" width="100" height="34" rx="6"/>
+              <text class="esq-final-texto" x="330" y="292" text-anchor="middle">soma</text>
+              <text class="esq-texto" x="200" y="320" text-anchor="middle">reduz o viés</text>
+            </svg>
+          </div>
+          <figcaption>Figura 3. No bagging, as árvores são treinadas em paralelo com amostras diferentes e decidem por voto. No boosting, cada árvore é treinada depois da anterior para corrigir o erro que restou, e o resultado é a soma de todas.</figcaption>
+        </figure>
+
+        <h3>Mais árvores, resultado mais estável</h3>
+        <p>Com uma árvore só, o F1 na validação foi 0,9959. Com 10 árvores subiu para 0,9989 e, a partir daí, praticamente parou de mudar. Também repetimos o teste de variância: 10 florestas treinadas em amostras diferentes tiveram desvio padrão de 0,0001, um terço do desvio das árvores sozinhas.</p>
+
+        <figure>
+          <img src="imagens/rf_numero_arvores.png" width="689" height="390" loading="lazy"
+               alt="Gráfico de linha do F1 na validação pelo número de árvores, em escala logarítmica: sobe de 0,996 com 1 árvore para 0,999 com 10 e fica estável até 200.">
+          <figcaption>Figura 4. F1 na validação conforme o número de árvores da floresta.</figcaption>
+        </figure>
+
+        <h3>Erro out-of-bag: uma validação de graça</h3>
+        <p>Como cada árvore deixa uns 37% do treino de fora, dá para avaliar cada exemplo só com as árvores que não o viram. Isso é o <dfn>erro out-of-bag</dfn> (OOB). Na nossa floresta de 200 árvores ele ficou em 0,12%, bem perto do que medimos na validação separada.</p>
+
+        <h3>Importância dos atributos</h3>
+        <p>A floresta não dá para ler árvore por árvore, mas ela calcula quanto cada atributo ajudou a separar as classes, somando todas as árvores. Isso é a <dfn>importância dos atributos</dfn>, que mostramos nos <a href="#interpretabilidade">resultados</a>.</p>
+
+        <p class="quando"><strong>Quando usar:</strong> quando a árvore sozinha é instável demais, quando queremos um bom resultado sem muito ajuste e quando o tempo de predição não é crítico, já que cada fluxo passa por centenas de árvores.</p>
+      </section>
+
+      <!-- ================= XGBOOST ================= -->
+      <section id="xgboost" aria-labelledby="t-xgboost">
+        <h2 id="t-xgboost"><span class="t-boost">XGBoost</span>: árvores que corrigem as anteriores</h2>
+        <p>Na Random Forest as árvores são treinadas ao mesmo tempo, sem uma saber da outra. No <dfn>boosting</dfn> é o contrário: as árvores são construídas em sequência, e cada nova árvore tenta corrigir os erros que as anteriores ainda cometem (veja a figura 3).</p>
+
+        <h3>A ideia com um exemplo</h3>
+        <p>Pense numa conexão de ataque que a primeira árvore classificou com só 30% de chance de ser ataque. O erro dela é grande. A segunda árvore é treinada justamente para empurrar essa previsão na direção certa. A terceira corrige o que sobrou, e assim por diante. A resposta final é a soma das contribuições de todas as árvores.</p>
+        <p>Quando essa correção segue o gradiente (a direção em que o erro diminui mais rápido), o método se chama <dfn>gradient boosting</dfn>. O <dfn>XGBoost</dfn> (<i>eXtreme Gradient Boosting</i>) é uma implementação de gradient boosting que acrescenta regularização e várias otimizações de velocidade (Chen e Guestrin, 2016 <a href="#ref-2">[2]</a>; documentação oficial <a href="#ref-6">[6]</a>).</p>
+
+        <h3>Taxa de aprendizado e número de rodadas</h3>
+        <p>A <dfn>taxa de aprendizado</dfn> (<code>learning_rate</code>) diz quanto cada árvore nova pode mudar a previsão. Uma taxa alta aprende rápido, mas pode passar do ponto. Uma taxa baixa aprende com mais cuidado, mas precisa de mais árvores, que chamamos de <dfn>rodadas</dfn>.</p>
+        <p>No nosso teste, com taxa 0,3 o modelo parou em 114 árvores. Com 0,1 precisou de 359. Com 0,03 chegou ao limite de 600 árvores ainda melhorando devagar.</p>
+
+        <figure>
+          <img src="imagens/xgb_taxa_aprendizado.png" width="690" height="390" loading="lazy"
+               alt="Gráfico do erro na validação a cada rodada para três taxas de aprendizado: a curva da taxa 0,3 cai mais rápido e para em 114 árvores; a de 0,1 para em 359; a de 0,03 desce devagar até 600.">
+          <figcaption>Figura 5. Erro (log loss) na validação a cada rodada do XGBoost, para três taxas de aprendizado, com early stopping.</figcaption>
+        </figure>
+
+        <h3>Early stopping contra overfitting</h3>
+        <p>Como cada árvore corrige a anterior, o boosting pode continuar corrigindo até decorar o ruído do treino. O <dfn>early stopping</dfn> (parada antecipada) evita isso: acompanhamos o erro numa validação e paramos quando ele fica 30 rodadas sem melhorar.</p>
+
+        <pre class="codigo"><code class="language-python">from xgboost import XGBClassifier
+
+# early stopping: para após 30 rodadas sem melhorar na validação
+xgb = XGBClassifier(n_estimators=600,      # limite de rodadas
+                    learning_rate=0.1,
+                    max_depth=6,
+                    eval_metric="logloss",
+                    early_stopping_rounds=30,
+                    random_state=SEED)
+xgb.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
+print("parou em", xgb.best_iteration + 1, "árvores")</code></pre>
+        <p class="cod-nota">Trecho do notebook, seção 3. <code>X_val</code> é a validação separada do treino: o teste não entra aqui.</p>
+
+        <h3>Regularização</h3>
+        <p>O XGBoost também penaliza árvores complicadas demais. Essa penalidade é a <dfn>regularização</dfn>, controlada por hiperparâmetros como <code>reg_lambda</code> e <code>max_depth</code>. Além disso, <code>subsample</code> e <code>colsample_bytree</code> sorteiam linhas e colunas para cada árvore, uma ideia parecida com a da Random Forest.</p>
+
+        <details class="aprofundar">
+          <summary>Aprofundamento: o objetivo do XGBoost</summary>
+          <p>O modelo minimiza a soma do erro de cada exemplo (<i>l</i>) com uma penalidade (Ω) para cada árvore <i>f</i>. Na penalidade, <i>T</i> é o número de folhas, <i>w</i> são os valores das folhas, e γ e λ são hiperparâmetros.</p>
+          <p class="formula">ℒ = Σ<sub>i</sub> <i>l</i>(<i>y</i><sub>i</sub>, <i>ŷ</i><sub>i</sub>) + Σ<sub>k</sub> Ω(<i>f</i><sub>k</sub>), &emsp; Ω(<i>f</i>) = γ<i>T</i> + ½ λ ‖<i>w</i>‖<sup>2</sup></p>
+          <p>Quanto maior o λ (<code>reg_lambda</code>), mais os valores das folhas são puxados para zero, e mais cada árvore precisa justificar sua contribuição. A dedução completa está em Chen e Guestrin (2016) <a href="#ref-2">[2]</a> e na <a href="https://xgboost.readthedocs.io/en/stable/tutorials/model.html" target="_blank" rel="noopener noreferrer">documentação oficial</a>.</p>
+        </details>
+
+        <p class="quando"><strong>Quando usar:</strong> quando o desempenho é a prioridade, quando há tempo para ajustar hiperparâmetros e quando é possível conviver com um modelo mais difícil de explicar.</p>
+      </section>
+
+      <!-- ================= COMPARAÇÃO ================= -->
+      <section id="comparacao" aria-labelledby="t-comparacao">
+        <h2 id="t-comparacao">Bagging × boosting: viés e variância</h2>
+        <p>Árvore, floresta e boosting usam o mesmo bloco de construção, a árvore. O que muda é como as árvores são combinadas, e cada forma ataca um tipo diferente de erro.</p>
+        <ul>
+          <li><strong>Variância</strong> é o quanto o modelo muda se os dados mudarem um pouco. Uma árvore funda tem variância alta: aprende detalhes demais de cada amostra.</li>
+          <li><dfn>Viés</dfn> é um erro sistemático, de um modelo simples demais para o padrão. Uma árvore de profundidade 1 tem viés alto: uma pergunta só não separa os ataques.</li>
+        </ul>
+        <p>A <strong>floresta reduz a variância</strong>: cada árvore funda erra de um jeito diferente, e na média dos votos esses erros se cancelam. Ela não corrige um erro que todas as árvores cometem juntas.</p>
+        <p>O <strong>boosting reduz o viés</strong>: começa com árvores rasas, que sozinhas são simples demais, e cada nova árvore ataca justamente o erro que sobrou. Por isso ele costuma usar árvores menores (nosso melhor XGBoost tem profundidade 6, a melhor floresta chega a 30). O risco é passar a corrigir ruído, e por isso ele precisa de taxa de aprendizado, regularização e early stopping.</p>
+
+        <h3>Quadro comparativo</h3>
+        <div class="tabela" tabindex="0" role="region" aria-label="Quadro comparativo dos três modelos">
+          <table class="comparativo">
+            <thead>
+              <tr><th scope="col"></th><th scope="col"><span class="t-arvore">Árvore de Decisão</span></th><th scope="col"><span class="t-floresta">Random Forest</span></th><th scope="col"><span class="t-boost">XGBoost</span></th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Como funciona</th><td>Uma sequência de perguntas até uma folha</td><td>Muitas árvores em paralelo, com bootstrap e sorteio de atributos, decidindo por voto</td><td>Árvores em sequência, cada uma corrigindo o erro das anteriores</td></tr>
+              <tr><th scope="row">Vantagens</th><td>Fácil de ler, treino e predição muito rápidos</td><td>Estável, funciona bem com pouco ajuste, erro OOB grátis</td><td>Em geral o melhor desempenho, tem regularização e early stopping</td></tr>
+              <tr><th scope="row">Desvantagens</th><td>Instável, faz overfitting fácil</td><td>Pesada para prever (centenas de árvores), difícil de ler</td><td>Muitos hiperparâmetros, sensível ao ajuste, difícil de ler</td></tr>
+              <tr><th scope="row">Interpretabilidade</th><td>Alta: dá para auditar cada regra</td><td>Baixa: só a importância dos atributos</td><td>Baixa: importância dos atributos ou SHAP (um método que mostra quanto cada atributo pesou numa decisão específica)</td></tr>
+              <tr><th scope="row">Tempo de treino (nosso teste)</th><td>1,7 s</td><td>27,1 s</td><td>15,5 s</td></tr>
+              <tr><th scope="row">Risco de overfitting</th><td>Alto sem poda ou limite de profundidade</td><td>Baixo</td><td>Médio: controlado por taxa, regularização e early stopping</td></tr>
+              <tr><th scope="row">Erro que reduz</th><td>(modelo base)</td><td>Variância</td><td>Viés</td></tr>
+              <tr><th scope="row">Cenário ideal</th><td>Decisão que precisa ser explicada ou muito rápida</td><td>Bom resultado com pouco ajuste, sem pressa na predição</td><td>Desempenho máximo com tempo para ajustar</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================= EXPERIMENTO ================= -->
+      <section id="experimento" aria-labelledby="t-experimento">
+        <h2 id="t-experimento">O experimento: detector de intrusão com o NSL-KDD</h2>
+        <p>Treinamos os três modelos nos mesmos dados, com a mesma divisão e a mesma semente (<code>SEED = 42</code>), e demos a cada um o mesmo esforço de ajuste.</p>
+
+        <h3>Os dados</h3>
+        <p>O <a href="https://www.unb.ca/cic/datasets/nsl.html" target="_blank" rel="noopener noreferrer">NSL-KDD</a> é um conjunto público de conexões de rede rotuladas, uma versão corrigida do KDD Cup 99 sem registros duplicados (Tavallaee et al., 2009 <a href="#ref-3">[3]</a>; CIC/UNB <a href="#ref-7">[7]</a>). Cada conexão tem 41 atributos, como duração, protocolo, serviço, bytes enviados e taxas de erro. O alvo que escolhemos é binário: <strong>normal (0) ou ataque (1)</strong>. Os ataques se dividem em quatro categorias:</p>
+        <ul>
+          <li><strong>DoS:</strong> derrubar um serviço com excesso de requisições;</li>
+          <li><strong>Probe:</strong> varredura em busca de máquinas e portas abertas;</li>
+          <li><strong>R2L:</strong> acesso remoto sem ter conta na máquina, como adivinhar senha;</li>
+          <li><strong>U2R:</strong> um usuário comum tentando virar administrador (root).</li>
+        </ul>
+
+        <h3>Como dividimos treino e teste</h3>
+        <p>Usamos a divisão oficial: <strong>KDDTrain+</strong> para treino (125.973 conexões, 46,5% ataques) e <strong>KDDTest+</strong> para teste (22.544 conexões, 56,9% ataques). O teste tem <strong>17 tipos de ataque que não existem no treino</strong>, que somam 3.750 conexões (16,6% do teste). É o caso realista de um ataque novo, e por isso não usamos uma divisão aleatória.</p>
+        <p>Dos 41 atributos, três são texto (<code>protocol_type</code>, <code>service</code> e <code>flag</code>) e viraram colunas de 0 e 1 (<i>one-hot</i>), chegando a 122 atributos. Para os gráficos didáticos das seções anteriores, separamos 20% do treino como validação. O teste só foi usado uma vez, no final.</p>
+
+        <h3>Ajuste honesto</h3>
+        <p>Comparar uma árvore sem ajuste com um XGBoost ajustado não prova nada. Por isso cada modelo passou pela mesma busca: 15 combinações de hiperparâmetros sorteadas (<code>RandomizedSearchCV</code>), validação cruzada estratificada de 3 dobras só no treino, e escolha pelo F1.</p>
+        <p>Na <dfn>validação cruzada</dfn>, o treino é dividido em 3 partes (dobras). O modelo treina em duas e é avaliado na terceira, revezando até cada parte ter sido usada como avaliação. <i>Estratificada</i> quer dizer que cada dobra mantém a mesma proporção de ataques do treino inteiro.</p>
+
+        <pre class="codigo"><code class="language-python">from sklearn.model_selection import (RandomizedSearchCV,
+                                     StratifiedKFold)
+from scipy.stats import randint, loguniform
+
+# mesma busca para os três modelos: 15 combinações, 3 dobras, F1
+cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=SEED)
+
+busca = RandomizedSearchCV(
+    XGBClassifier(random_state=SEED, eval_metric="logloss"),
+    {"n_estimators": randint(100, 501),
+     "learning_rate": loguniform(0.01, 0.3),
+     "max_depth": randint(3, 11),
+     "reg_lambda": loguniform(0.1, 10)},   # regularização
+    n_iter=15, cv=cv, scoring="f1", random_state=SEED)
+
+busca.fit(X_train, y_train)   # só o treino entra aqui
+print(busca.best_params_)</code></pre>
+        <p class="cod-nota">Trecho do notebook, seção 4, mostrando só o XGBoost. A árvore e a floresta passam pela mesma busca, com o mesmo <code>cv</code> e o mesmo <code>n_iter</code>.</p>
+
+        <h3>Como medimos</h3>
+        <p>Cada modelo final foi treinado no treino inteiro com os melhores hiperparâmetros. Medimos:</p>
+        <ul>
+          <li><strong>Precisão, recall e F1</strong>, como definimos no <a href="#vocabulario">vocabulário</a>.</li>
+          <li><dfn>Matriz de confusão</dfn>: a contagem de acertos e erros de cada tipo.</li>
+          <li><strong>Tempo de treino</strong> e <dfn>latência</dfn>: quanto tempo leva para decidir um fluxo só (mediana de 200 tentativas).</li>
+        </ul>
+        <p>Não usamos só a acurácia porque ela esconde o tipo de erro. Num detector de intrusão, um <dfn>falso negativo</dfn> (ataque não detectado) pode significar uma invasão. Um <dfn>falso positivo</dfn> (alarme falso) custa tempo do analista e, se for frequente demais, faz a equipe ignorar os alertas.</p>
+
+        <pre class="codigo"><code class="language-python">import time
+import numpy as np
+
+# latência de um fluxo só: o caso de decidir em tempo quase real
+tempos = []
+for _ in range(200):
+    inicio = time.perf_counter()
+    modelo.predict(um_fluxo)
+    tempos.append(time.perf_counter() - inicio)
+print("latência (ms):", 1000 * np.median(tempos))</code></pre>
+        <p class="cod-nota">Trecho do notebook, seção 5. <code>um_fluxo</code> é uma única conexão do teste, e usamos a mediana para que uma medição lenta não distorça o resultado.</p>
+
+        <p>Usamos o scikit-learn (Pedregosa et al., 2011 <a href="#ref-5">[5]</a>) para a árvore e a floresta, e a biblioteca xgboost para o boosting.</p>
+        <p><strong>Versões:</strong> Python 3.13, scikit-learn 1.6.1, xgboost 3.4.1, pandas 2.2.3, numpy 2.1.3 (Google Colab). O notebook completo, com todas as saídas, está no repositório: <a href="https://github.com/akemiizinh4/arvore-floresta-boosting/blob/main/notebooks/experimento.ipynb" target="_blank" rel="noopener noreferrer">notebooks/experimento.ipynb</a>.</p>
+      </section>
+
+      <!-- ================= RESULTADOS ================= -->
+      <section id="resultados" aria-labelledby="t-resultados">
+        <h2 id="t-resultados">Resultados</h2>
+        <p>O XGBoost teve o melhor F1 (0,794) e deixou passar menos ataques, mas os três modelos perderam cerca de um terço dos ataques do teste.</p>
+
+        <div class="tabela larga" tabindex="0" role="region" aria-label="Métricas no teste">
+          <table>
+            <caption>Métricas no teste (KDDTest+, 22.544 conexões). Em negrito, o melhor valor de cada coluna.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Modelo</th>
+                <th scope="col" class="num">F1</th>
+                <th scope="col" class="num">Recall</th>
+                <th scope="col" class="num">Precisão</th>
+                <th scope="col" class="num">Acurácia</th>
+                <th scope="col" class="num destaque-erro">Ataques perdidos</th>
+                <th scope="col" class="num">Alarmes falsos</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="escolhido"><td><span class="ponto boost" aria-hidden="true"></span>XGBoost</td><td class="num"><b>0,794</b></td><td class="num"><b>0,673</b></td><td class="num"><b>0,970</b></td><td class="num"><b>0,802</b></td><td class="num destaque-erro"><b>4.200</b></td><td class="num">270</td></tr>
+              <tr><td><span class="ponto arvore" aria-hidden="true"></span>Árvore de Decisão</td><td class="num">0,784</td><td class="num">0,659</td><td class="num">0,966</td><td class="num">0,793</td><td class="num destaque-erro">4.371</td><td class="num">298</td></tr>
+              <tr><td><span class="ponto floresta" aria-hidden="true"></span>Random Forest</td><td class="num">0,754</td><td class="num">0,617</td><td class="num">0,967</td><td class="num">0,770</td><td class="num destaque-erro">4.911</td><td class="num"><b>267</b></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tabela" tabindex="0" role="region" aria-label="Tempos de treino e predição">
+          <table>
+            <caption>Tempos medidos no Google Colab. A latência é a mediana de 200 predições de um fluxo só.</caption>
+            <thead>
+              <tr><th scope="col">Modelo</th><th scope="col" class="num">Treino (s)</th><th scope="col" class="num">Teste inteiro (ms)</th><th scope="col" class="num">Latência de 1 fluxo (ms)</th></tr>
+            </thead>
+            <tbody>
+              <tr class="escolhido"><td><span class="ponto boost" aria-hidden="true"></span>XGBoost</td><td class="num">15,5</td><td class="num">331</td><td class="num">14,7</td></tr>
+              <tr><td><span class="ponto arvore" aria-hidden="true"></span>Árvore de Decisão</td><td class="num"><b>1,7</b></td><td class="num"><b>13</b></td><td class="num"><b>1,6</b></td></tr>
+              <tr><td><span class="ponto floresta" aria-hidden="true"></span>Random Forest</td><td class="num">27,1</td><td class="num">446</td><td class="num">77,7</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Na validação cruzada, dentro do treino, os três tinham F1 entre 0,998 e 0,999. A queda para 0,75 a 0,79 no teste vem dos ataques novos, como mostramos abaixo.</p>
+
+        <figure class="largo">
+          <img src="imagens/matrizes_confusao.png" width="1414" height="448" loading="lazy"
+               alt="Três matrizes de confusão 2 por 2 lado a lado. Ataques classificados como normais: 4.371 na árvore, 4.911 na Random Forest e 4.200 no XGBoost. Normais classificados como ataque: 298, 267 e 270.">
+          <figcaption>Figura 6. Matrizes de confusão no teste; as linhas são a classe real e as colunas a prevista. O quadrado de baixo à esquerda é o dos ataques que passaram.</figcaption>
+        </figure>
+
+        <p>Os três modelos quase não dão alarme falso (precisão de 97%), mas todos deixam passar muitos ataques. Para um detector de intrusão, esse é o pior lado para errar.</p>
+
+        <h3>Curva ROC: o problema está no limiar</h3>
+        <p>Cada modelo dá uma probabilidade de ataque, e o padrão é chamar de ataque quando ela passa de 0,5. A <dfn>curva ROC</dfn> mostra o que aconteceria com outros limiares, e a <dfn>AUC</dfn> (área sob a curva) resume isso num número de 0,5 (sorteio) a 1 (perfeito).</p>
+
+        <figure>
+          <img src="imagens/curva_roc.png" width="581" height="590" loading="lazy" style="max-width: 30rem"
+               alt="Curva ROC dos três modelos no teste. As curvas do XGBoost e da Random Forest sobem quase até o canto superior esquerdo, com AUC 0,97 e 0,96; a da árvore fica bem abaixo, com AUC 0,83.">
+          <figcaption>Figura 7. Curva ROC no teste: AUC de 0,97 no XGBoost, 0,96 na Random Forest e 0,83 na árvore.</figcaption>
+        </figure>
+
+        <p>O XGBoost e a Random Forest separam bem os ataques, mas o limiar de 0,5 é conservador demais para os ataques novos. Pela curva, aceitando uns 10% de alarmes falsos, o XGBoost chegaria perto de 90% de recall. <strong>Não escolhemos esse limiar</strong>, porque usar o teste para isso seria vazamento de dados: o teste deixaria de medir o comportamento com ataques nunca vistos.</p>
+
+        <h3>Onde os modelos erram: recall por categoria</h3>
+        <div class="tabela larga" tabindex="0" role="region" aria-label="Recall por categoria de ataque">
+          <table>
+            <caption>Fração dos ataques de cada grupo que o modelo detectou, no teste.</caption>
+            <thead>
+              <tr><th scope="col">Modelo</th><th scope="col" class="num">DoS</th><th scope="col" class="num">Probe</th><th scope="col" class="num">R2L</th><th scope="col" class="num">U2R</th><th scope="col" class="num">Tipos conhecidos</th><th scope="col" class="num">Tipos novos</th></tr>
+            </thead>
+            <tbody>
+              <tr class="escolhido"><td><span class="ponto boost" aria-hidden="true"></span>XGBoost</td><td class="num"><b>0,870</b></td><td class="num">0,806</td><td class="num">0,066</td><td class="num">0,075</td><td class="num">0,773</td><td class="num"><b>0,430</b></td></tr>
+              <tr><td><span class="ponto arvore" aria-hidden="true"></span>Árvore de Decisão</td><td class="num">0,833</td><td class="num"><b>0,809</b></td><td class="num"><b>0,093</b></td><td class="num"><b>0,180</b></td><td class="num"><b>0,774</b></td><td class="num">0,383</td></tr>
+              <tr><td><span class="ponto floresta" aria-hidden="true"></span>Random Forest</td><td class="num">0,801</td><td class="num">0,732</td><td class="num">0,057</td><td class="num">0,105</td><td class="num">0,769</td><td class="num">0,249</td></tr>
+              <tr><td>Nº de ataques no teste</td><td class="num">7.458</td><td class="num">2.421</td><td class="num">2.754</td><td class="num">200</td><td class="num">9.083</td><td class="num">3.750</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Dois achados. Primeiro, nos ataques de tipos conhecidos os três empatam (recall de cerca de 77%), e a diferença entre eles aparece nos <strong>ataques novos</strong>: o XGBoost pegou 43%, a Random Forest só 25%. Segundo, <strong>R2L e U2R quase não são detectados</strong> por nenhum modelo, com recall abaixo de 20%. Esses ataques se parecem com uso normal (um login, um comando) e têm poucos exemplos no treino.</p>
+
+        <figure>
+          <img src="imagens/recall_por_categoria.png" width="790" height="390" loading="lazy"
+               alt="Gráfico de barras agrupadas do recall por categoria: DoS e Probe acima de 0,7 nos três modelos; R2L e U2R abaixo de 0,2.">
+          <figcaption>Figura 8. Recall de cada modelo por categoria de ataque.</figcaption>
+        </figure>
+
+        <h3 id="interpretabilidade">Interpretabilidade</h3>
+        <p>A árvore final tem profundidade 20 e 205 folhas. Dá para seguir e auditar o caminho de qualquer decisão, mas não para ler o modelo inteiro. A Random Forest tem 253 árvores e o XGBoost 393: para eles, usamos a importância dos atributos.</p>
+
+        <figure class="largo">
+          <img src="imagens/importancia_atributos.png" width="1289" height="490" loading="lazy"
+               alt="Dois gráficos de barras horizontais com os 10 atributos mais importantes. Na Random Forest lideram src_bytes, dst_bytes e flag_SF. No XGBoost lideram service_ecr_i, service_http e flag_SF.">
+          <figcaption>Figura 9. Os 10 atributos mais importantes na Random Forest e no XGBoost.</figcaption>
+        </figure>
+
+        <p>Na Random Forest pesam mais os bytes enviados e recebidos (<code>src_bytes</code>, <code>dst_bytes</code>). No XGBoost lidera <code>service_ecr_i</code>, que é a requisição de ping (ICMP echo), típica do ataque smurf. Os dois concordam em <code>flag_SF</code> (conexão encerrada normalmente) e <code>src_bytes</code>. Cuidado ao comparar: cada biblioteca mede importância de um jeito, e importância alta não quer dizer que o atributo <i>causa</i> o ataque.</p>
+      </section>
+
+      <!-- ================= RECOMENDAÇÃO ================= -->
+      <section id="recomendacao" class="recomendacao" aria-labelledby="t-recomendacao">
+        <h2 id="t-recomendacao">Recomendação: XGBoost, com a árvore como plano B</h2>
+        <p class="veredito">Para o nosso detector de intrusão, escolhemos o <span class="t-boost">XGBoost</span>.</p>
+        <p>Não foi só porque ele ficou no topo da tabela, mas porque ganhou no critério que mais importa nesse problema: o custo dos erros.</p>
+        <ol>
+          <li><strong>Custo dos erros.</strong> Um ataque não detectado é muito mais caro que um alarme falso. O XGBoost deixou passar 4.200 ataques, contra 4.371 da árvore e 4.911 da Random Forest, sem aumentar os alarmes falsos (270).</li>
+          <li><strong>Ataques novos.</strong> É o problema que motiva o artigo. O XGBoost detectou 43% dos ataques de tipos nunca vistos, contra 38% da árvore e 25% da Random Forest.</li>
+          <li><strong>Margem para melhorar.</strong> Com AUC de 0,97, o XGBoost é o modelo que mais ganharia com um limiar ajustado de forma correta, numa validação que tenha ataques novos.</li>
+          <li><strong>Latência.</strong> Cerca de 15 ms por fluxo, rápido o bastante para decidir quase em tempo real.</li>
+        </ol>
+        <p><strong>O preço é a interpretabilidade.</strong> Ninguém audita 393 árvores à mão. Por isso mostramos a importância dos atributos, e o próximo passo seria usar SHAP para explicar cada alerta individualmente, mostrando quais atributos levaram àquela decisão.</p>
+        <p><strong>Quando escolheríamos a árvore.</strong> Se o cenário exigisse explicar cada alerta para um analista ou ter latência mínima (1,6 ms, cerca de 10 vezes mais rápida), a árvore seria a escolha. Ela ficou só 1 ponto atrás no F1 e foi a melhor em R2L e U2R.</p>
+        <p><strong>Por que não a Random Forest.</strong> Aqui ela foi a pior nas três frentes: menor recall, pior nos ataques novos e mais lenta para prever. Isso não quer dizer que ela seja ruim em geral: em outros estudos com dados de redes ela supera o XGBoost. Não existe um vencedor universal; depende dos dados, das classes e do ajuste.</p>
+      </section>
+
+      <!-- ================= LIMITAÇÕES ================= -->
+      <section id="limitacoes" aria-labelledby="t-limitacoes">
+        <h2 id="t-limitacoes">Limitações</h2>
+        <p>Somos honestos sobre o que este experimento não mostra:</p>
+        <ul>
+          <li><strong>Uma execução, uma semente.</strong> A diferença de 1 ponto de F1 entre o XGBoost e a árvore pode não se manter com outras sementes. O ideal seria repetir com várias e comparar as médias.</li>
+          <li><strong>Latência inflada.</strong> A Random Forest e o XGBoost foram configurados com <code>n_jobs=-1</code> (usar todos os núcleos). Para prever um fluxo só, o custo de dividir o trabalho entre núcleos pesa mais que a predição. Os 77,7 ms da Random Forest são, em boa parte, esse custo.</li>
+          <li><strong>Ataques novos continuam difíceis.</strong> Nenhum dos três passou de 43% nos ataques nunca vistos. Aprendizado supervisionado só reconhece o que já viu; na prática, ele precisa ser combinado com detecção de anomalias e com regras de especialistas.</li>
+          <li><strong>R2L e U2R quase não são detectados.</strong> São poucos exemplos e muito parecidos com uso normal. Técnicas de balanceamento de classes poderiam ajudar, mas precisam ser validadas sem tocar no teste.</li>
+          <li><strong>Limiar padrão.</strong> Mantivemos o limiar de 0,5 de propósito. Ajustá-lo é o trabalho futuro mais promissor, desde que com um conjunto de validação próprio.</li>
+          <li><strong>NSL-KDD é antigo.</strong> O conjunto vem de tráfego simulado de 1998. Ele serve para comparar métodos, mas não representa uma rede atual. Conjuntos como UNSW-NB15 e CIC-IDS2017 seriam o próximo passo.</li>
+        </ul>
+      </section>
+
+      <!-- ================= LINKS E REFERÊNCIAS ================= -->
+      <section id="links" aria-labelledby="t-links">
+        <h2 id="t-links">Para ir além</h2>
+        <p>Poucos links, escolhidos a dedo. Cada um tem uma linha dizendo por que vale a leitura.</p>
+        <ul class="links">
+          <li><a href="https://www.datacamp.com/pt/tutorial/ensemble-learning-python-guide" target="_blank" rel="noopener noreferrer">DataCamp: aprendizado em conjunto em Python</a>. Tutorial em português que mostra bagging e boosting com código num conjunto de dados real.</li>
+          <li><a href="https://xgboost.readthedocs.io/en/stable/tutorials/model.html" target="_blank" rel="noopener noreferrer">Documentação do XGBoost: introdução a árvores com boosting</a>. A explicação oficial de como o XGBoost monta e regulariza as árvores.</li>
+          <li><a href="https://scikit-learn.org/stable/modules/ensemble.html" target="_blank" rel="noopener noreferrer">scikit-learn: métodos de ensemble</a>. A documentação da Random Forest, com o erro OOB e a importância dos atributos.</li>
+          <li><a href="https://scikit-learn.org/stable/modules/tree.html" target="_blank" rel="noopener noreferrer">scikit-learn: árvores de decisão</a>. Critérios de divisão, poda e as vantagens e desvantagens das árvores.</li>
+          <li><a href="https://arxiv.org/abs/2512.03200" target="_blank" rel="noopener noreferrer">Osco Vasquez (2025): estudo multiclasse com NSL-KDD</a>. Compara os mesmos modelos no mesmo conjunto e chega a cerca de 99% de acurácia, útil para discutir como a divisão dos dados muda os números.</li>
+        </ul>
+
+      </section>
+
+      <section id="referencias" aria-labelledby="t-referencias">
+        <h2 id="t-referencias">Referências</h2>
+        <ol class="referencias">
+          <li id="ref-1">BREIMAN, L. Random Forests. <i>Machine Learning</i>, v. 45, p. 5–32, 2001. <a href="https://doi.org/10.1023/A:1010933404324" target="_blank" rel="noopener noreferrer">doi:10.1023/A:1010933404324</a></li>
+          <li id="ref-2">CHEN, T.; GUESTRIN, C. XGBoost: A Scalable Tree Boosting System. In: <i>Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</i>, 2016. <a href="https://arxiv.org/abs/1603.02754" target="_blank" rel="noopener noreferrer">arXiv:1603.02754</a></li>
+          <li id="ref-3">TAVALLAEE, M. et al. A detailed analysis of the KDD CUP 99 data set. In: <i>IEEE Symposium on Computational Intelligence for Security and Defense Applications</i>, 2009. <a href="https://doi.org/10.1109/CISDA.2009.5356528" target="_blank" rel="noopener noreferrer">doi:10.1109/CISDA.2009.5356528</a></li>
+          <li id="ref-4">OSCO VASQUEZ, L. M. Detección de intrusiones en redes mediante algoritmos de aprendizaje automático: un estudio multiclase sobre el conjunto de datos NSL-KDD. arXiv:2512.03200, 2025. <a href="https://arxiv.org/abs/2512.03200" target="_blank" rel="noopener noreferrer">arxiv.org/abs/2512.03200</a></li>
+          <li id="ref-5">PEDREGOSA, F. et al. Scikit-learn: Machine Learning in Python. <i>Journal of Machine Learning Research</i>, v. 12, p. 2825–2830, 2011.</li>
+          <li id="ref-6">XGBOOST DEVELOPERS. Introduction to Boosted Trees. Documentação oficial do XGBoost. <a href="https://xgboost.readthedocs.io/en/stable/tutorials/model.html" target="_blank" rel="noopener noreferrer">xgboost.readthedocs.io</a></li>
+          <li id="ref-7">CANADIAN INSTITUTE FOR CYBERSECURITY. NSL-KDD dataset. University of New Brunswick. <a href="https://www.unb.ca/cic/datasets/nsl.html" target="_blank" rel="noopener noreferrer">unb.ca/cic/datasets/nsl.html</a></li>
+        </ol>
+      </section>
+
+      <!-- ================= AUTORES ================= -->
+      <!-- Antes de publicar: cada integrante autoriza por escrito o que aparece aqui (LGPD).
+           Fotos em imagens/autores/<usuario-do-github>.jpg (quadradas, ~300 px). -->
+      <section id="autores" aria-labelledby="t-autores">
+        <h2 id="t-autores">Autores</h2>
+        <ul class="cartoes">
+          <li class="cartao">
+            <span class="foto grande"><span aria-hidden="true">D</span><img src="imagens/autores/DaviGabriel07.jpg" alt="Foto de Davi Gabriel Borges dos Santos" onerror="this.remove()"></span>
+            <h3>Davi Gabriel Borges dos Santos</h3>
+            <p class="pendente">Ciência da Computação, 4º semestre. área de interesse</p>
+            <p class="perfis"><a href="https://github.com/DaviGabriel07" target="_blank" rel="noopener noreferrer">GitHub</a> <span class="pendente">[LinkedIn]</span></p>
+          </li>
+          <li class="cartao">
+            <span class="foto grande"><span aria-hidden="true">F</span><img src="imagens/autores/akemiizinh4.jpg" alt="Foto de Fernanda Akemi Martins Sanpei" onerror="this.remove()"></span>
+            <h3>Fernanda Akemi Martins Sanpei</h3>
+            <p class="pendente">Ciência da Computação, 4º semestre. Desenvolvimento Web.</p>
+            <p class="perfis"><a href="https://github.com/akemiizinh4" target="_blank" rel="noopener noreferrer">GitHub</a> <a href="https://www.linkedin.com/in/fernanda-sanpei-287500294" target="_blank" rel="noopener noreferrer">LinkedIn</a></p>
+          </li>
+          <li class="cartao">
+            <span class="foto grande"><span aria-hidden="true">G</span><img src="imagens/autores/GzTop1.jpg" alt="Foto de Geziel de Andrade" onerror="this.remove()"></span>
+            <h3>Geziel de Andrade</h3>
+            <p class="pendente">Ciência da Computação, 4º semestre. área de interesse</p>
+            <p class="perfis"><a href="https://github.com/GzTop1" target="_blank" rel="noopener noreferrer">GitHub</a> <span class="pendente">[LinkedIn]</span></p>
+          </li>
+          <li class="cartao">
+            <span class="foto grande"><span aria-hidden="true">H</span><img src="imagens/autores/hendrick-constant.jpg" alt="Foto de Hendrick Ambriola" onerror="this.remove()"></span>
+            <h3>Hendrick Ambriola</h3>
+            <p class="pendente">Ciência da Computação, 4º semestre. área de interesse</p>
+            <p class="perfis"><a href="https://github.com/hendrick-constant" target="_blank" rel="noopener noreferrer">GitHub</a> <span class="pendente">[LinkedIn]</span></p>
+          </li>
+          <li class="cartao">
+            <span class="foto grande"><span aria-hidden="true">I</span><img src="imagens/autores/isaacwbraz.jpg" alt="Foto de Isaac William" onerror="this.remove()"></span>
+            <h3>Isaac William</h3>
+            <p class="pendente">Ciência da Computação, 4º semestre. área de interesse</p>
+            <p class="perfis"><a href="https://github.com/isaacwbraz" target="_blank" rel="noopener noreferrer">GitHub</a> <span class="pendente">[LinkedIn]</span></p>
+          </li>
+        </ul>
+      </section>
+    </article>
+  </div>
+
+  <!-- ================= RODAPÉ ================= -->
+  <footer class="rodape">
+    <div class="rodape-interno">
+      <div>
+        <h2>Licença</h2>
+        <p>Texto e figuras sob <a href="https://creativecommons.org/licenses/by/4.0/deed.pt-br" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>. Código sob licença MIT. Dados: NSL-KDD, Canadian Institute for Cybersecurity (UNB).</p>
+      </div>
+      <div>
+        <h2>Contato</h2>
+        <p>Dúvidas e correções: abra uma <a href="https://github.com/akemiizinh4/arvore-floresta-boosting/issues" target="_blank" rel="noopener noreferrer">issue no repositório</a>.</p>
+      </div>
+      <div>
+        <h2>Última revisão</h2>
+        <p><time datetime="2026-10-19">19 de outubro de 2026</time></p>
+      </div>
+      <div>
+        <h2>Repositório</h2>
+        <p><a href="https://github.com/akemiizinh4/arvore-floresta-boosting" target="_blank" rel="noopener noreferrer">github.com/akemiizinh4/arvore-floresta-boosting</a></p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+  <script src="js/indice.js"></script>
+</body>
+</html>
